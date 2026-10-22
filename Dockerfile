@@ -1,38 +1,20 @@
 # syntax = docker/dockerfile:1
-
-# Adjust BUN_VERSION as desired
-ARG BUN_VERSION=1.1.38
-FROM oven/bun:${BUN_VERSION}-slim as base
-
-LABEL fly_launch_runtime="Bun"
-
-# Bun app lives here
+ARG BUN_VERSION=1.4.4
+FROM oven/bun:${BUN_VERSION}-slim AS base
 WORKDIR /app
 
-# Set production environment
-ENV NODE_ENV="production"
-
-
-# Throw-away build stage to reduce size of final image
-FROM base as build
-
-# Install packages needed to build node modules
+FROM base AS build
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3
-
-# Install node modules
-COPY bun.lockb package.json ./
-RUN bun install --ci
-
-# Copy application code
+COPY package.json bun.lock ./
+COPY vendor/braces-3.0.4-local.4.tgz ./vendor/braces-3.0.4-local.4.tgz
+RUN bun install --frozen-lockfile
 COPY . .
+RUN bun run build
 
-# Final stage for app image
 FROM base
-
-# Copy built application
+ENV NODE_ENV=production
 COPY --from=build /app /app
-
-# Start the server by default, this can be overwritten at runtime
+USER bun
 EXPOSE 3080
-CMD [ "bun", "run", "start" ]
+CMD ["bun", "module/cli.ts", "server"]
